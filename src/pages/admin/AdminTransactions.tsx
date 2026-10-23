@@ -1,5 +1,6 @@
 import { useQuery } from '@tanstack/react-query';
 import { useState } from 'react';
+import { Link } from 'react-router-dom';
 import { Receipt, ArrowDownToLine, ArrowUpFromLine, TrendingUp, Award, Users, Gift } from 'lucide-react';
 import { supabase } from '@/lib/supabase';
 import { Card, Badge, PageHeader, EmptyState, StatCard, Pagination } from '@/components/ui';
@@ -76,7 +77,9 @@ export default function AdminTransactions() {
                     return (
                       <tr key={txn.id} className="hover:bg-white/5 transition-colors">
                         <td className="py-3">
-                          <p className="font-medium text-white">{user?.full_name || user?.username || 'User'}</p>
+                          <Link to={`/admin/users/${txn.user_id}`} className="group">
+                            <p className="font-medium text-white group-hover:text-gold-300 transition-colors">{user?.full_name || user?.username || 'User'}</p>
+                          </Link>
                         </td>
                         <td className="py-3">
                           <div className="flex items-center gap-2">

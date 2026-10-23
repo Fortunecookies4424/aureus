@@ -20,6 +20,7 @@ const SettingsPage = lazy(() => import('@/pages/dashboard/SettingsPage'));
 const AdminLayout = lazy(() => import('@/pages/admin/AdminLayout'));
 const AdminDashboard = lazy(() => import('@/pages/admin/AdminDashboard'));
 const AdminUsers = lazy(() => import('@/pages/admin/AdminUsers'));
+const AdminUserDetail = lazy(() => import('@/pages/admin/AdminUserDetail'));
 const AdminPackages = lazy(() => import('@/pages/admin/AdminPackages'));
 const AdminDeposits = lazy(() => import('@/pages/admin/AdminDeposits'));
 const AdminWithdrawals = lazy(() => import('@/pages/admin/AdminWithdrawals'));
@@ -77,6 +78,7 @@ export default function App() {
         <Route path="/admin" element={<AdminRoute><AdminLayout /></AdminRoute>}>
           <Route index element={<AdminDashboard />} />
           <Route path="users" element={<AdminUsers />} />
+          <Route path="users/:id" element={<AdminUserDetail />} />
           <Route path="packages" element={<AdminPackages />} />
           <Route path="deposits" element={<AdminDeposits />} />
           <Route path="withdrawals" element={<AdminWithdrawals />} />

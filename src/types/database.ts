@@ -253,6 +253,7 @@ export interface RewardsConfig {
   daily_checkin_amount: number;
   daily_checkin_reset_time: string;
   daily_checkin_max_streak: number | null;
+  referral_bonus_amount: number;
   updated_at: string;
 }
 
@@ -321,6 +322,15 @@ export interface AdminActivityLog {
   target_user_id: string | null;
   target_user_name: string | null;
   details: string | null;
+  created_at: string;
+}
+
+export interface InvestmentEarning {
+  id: string;
+  investment_id: string;
+  user_id: string;
+  earning_date: string;
+  amount: number;
   created_at: string;
 }
 

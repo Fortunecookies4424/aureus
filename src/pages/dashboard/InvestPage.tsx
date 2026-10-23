@@ -47,13 +47,16 @@ export default function InvestPage() {
     ? (selectedPkg.price * selectedPkg.roi / 100)
     : 0;
 
-  // Daily payout = price * roi / 100 / duration_days
-  const dailyPayout = selectedPkg
-    ? (selectedPkg.price * selectedPkg.roi / 100) / selectedPkg.duration_days
+  // Daily ROI = price * roi% (roi is the daily rate, e.g. 25 means 25%)
+  const dailyROI = selectedPkg
+    ? (selectedPkg.price * selectedPkg.roi / 100)
     : 0;
 
-  // Expected Total Returns = Daily Payout × 30 Days
-  const expectedTotalReturns = dailyPayout * 30;
+  // Total profit over duration = daily ROI * duration days
+  const totalProfit = dailyROI * (selectedPkg?.duration_days || 0);
+
+  // Expected Total Returns = Daily ROI × 30 Days
+  const expectedTotalReturns = dailyROI * 30;
 
   return (
     <div>
@@ -124,10 +127,11 @@ export default function InvestPage() {
                   <span className="text-sm text-ink-400">fixed price</span>
                 </div>
                 <div className="mt-4 space-y-2.5 text-sm border-t border-white/5 pt-4">
-                  <Row label="ROI" value={`${pkg.roi}%`} />
+                  <Row label="Daily ROI" value={<span className="text-success-400 font-semibold">{formatCurrency(pkg.price * pkg.roi / 100)}</span>} />
+                  <Row label="ROI Rate" value={`${pkg.roi}% daily`} />
                   <Row label="Duration" value={`${pkg.duration_days} days`} />
                   <Row label="Payout" value={<span className="capitalize">{pkg.payout_frequency}</span>} />
-                  <Row label="Expected Profit" value={<span className="text-success-400 font-semibold">{formatCurrency(pkg.price * pkg.roi / 100)}</span>} />
+                  <Row label="Total Profit" value={<span className="text-gold-300 font-semibold">{formatCurrency(pkg.price * pkg.roi / 100 * pkg.duration_days)}</span>} />
                 </div>
                 <Button
                   fullWidth
@@ -167,12 +171,13 @@ export default function InvestPage() {
               <Row label="Duration" value={`${selectedPkg.duration_days} days`} />
               <Row label="Payout Frequency" value={<span className="capitalize">{selectedPkg.payout_frequency}</span>} />
               <div className="border-t border-white/5 pt-3">
-                <Row label="Daily Payout" value={<span className="text-white font-semibold">{formatCurrency(dailyPayout)}</span>} />
+                <Row label="Daily ROI" value={<span className="text-success-400 font-bold">{formatCurrency(dailyROI)}</span>} />
+                <Row label="ROI Rate" value={`${selectedPkg.roi}% daily`} />
                 <Row label="Duration" value={`${selectedPkg.duration_days} Days`} />
                 <div className="border-t border-white/5 pt-2 mt-2">
+                  <Row label="Total Profit" value={<span className="text-white font-semibold">{formatCurrency(totalProfit)}</span>} />
                   <Row label="Expected Total Returns" value={<span className="text-gold-300 font-bold text-base">{formatCurrency(expectedTotalReturns)}</span>} />
                 </div>
-                <Row label="ROI" value={`${selectedPkg.roi}%`} />
               </div>
             </div>
 

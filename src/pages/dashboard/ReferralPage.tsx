@@ -55,7 +55,7 @@ export default function ReferralPage() {
               </div>
               <div>
                 <h3 className="font-semibold text-white">Your Referral Link</h3>
-                <p className="text-xs text-ink-400">Share this link to earn {s?.referral_percentage || 5}% commission</p>
+                <p className="text-xs text-ink-400">Share this link to earn {s?.referral_percentage || 5}% commission on every deposit your referrals make</p>
               </div>
             </div>
             <div className="flex flex-col sm:flex-row gap-3">

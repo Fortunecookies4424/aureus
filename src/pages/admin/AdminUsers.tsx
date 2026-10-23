@@ -3,9 +3,9 @@ import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { motion } from 'framer-motion';
 import {
   Users, Search, Ban, CheckCircle2, Edit3, Eye, X, Save,
-  KeyRound, UserCircle, Lock,
+  KeyRound, UserCircle, Lock, CheckSquare, Square,
 } from 'lucide-react';
-import { useNavigate } from 'react-router-dom';
+import { useNavigate, Link } from 'react-router-dom';
 import { supabase } from '@/lib/supabase';
 import { useToast } from '@/context/ToastContext';
 import { useAuth } from '@/context/AuthContext';
@@ -25,6 +25,7 @@ export default function AdminUsers() {
   const [balanceReason, setBalanceReason] = useState('');
   const [page, setPage] = useState(1);
   const [pageSize, setPageSize] = useState(10);
+  const [selectedIds, setSelectedIds] = useState<Set<string>>(new Set());
 
   // Reset password state
   const [resetTarget, setResetTarget] = useState<Profile | null>(null);
@@ -68,6 +69,43 @@ export default function AdminUsers() {
       toast.error('Update failed', msg);
     },
   });
+
+  const bulkStatus = useMutation({
+    mutationFn: async ({ ids, status }: { ids: string[]; status: 'active' | 'suspended' }) => {
+      const { error } = await supabase.rpc('bulk_set_user_status', { p_user_ids: ids, p_status: status });
+      if (error) throw error;
+    },
+    onSuccess: () => {
+      qc.invalidateQueries({ queryKey: ['admin-users'] });
+      toast.success('User statuses updated');
+      setSelectedIds(new Set());
+    },
+    onError: (err) => {
+      const msg = err instanceof Error ? err.message : 'Failed to update users';
+      toast.error('Bulk update failed', msg);
+    },
+  });
+
+  const toggleSelect = (id: string) => {
+    setSelectedIds((prev) => {
+      const next = new Set(prev);
+      if (next.has(id)) next.delete(id); else next.add(id);
+      return next;
+    });
+  };
+
+  const toggleSelectAll = () => {
+    const selectableIds = pagedUsers.filter((u) => u.role !== 'admin').map((u) => u.id);
+    if (selectableIds.every((id) => selectedIds.has(id))) {
+      setSelectedIds((prev) => {
+        const next = new Set(prev);
+        selectableIds.forEach((id) => next.delete(id));
+        return next;
+      });
+    } else {
+      setSelectedIds((prev) => new Set([...prev, ...selectableIds]));
+    }
+  };
 
   const updateBalance = useMutation({
     mutationFn: async () => {
@@ -150,6 +188,18 @@ export default function AdminUsers() {
       </div>
 
       <Card>
+        {selectedIds.size > 0 && (
+          <div className="flex items-center gap-3 p-3 mb-3 rounded-xl bg-gold-400/5 border border-gold-400/20">
+            <span className="text-sm text-gold-200 font-medium">{selectedIds.size} selected</span>
+            <Button size="sm" onClick={() => bulkStatus.mutate({ ids: [...selectedIds], status: 'active' })} loading={bulkStatus.isPending}>
+              <CheckCircle2 className="w-3.5 h-3.5" /> Activate All
+            </Button>
+            <Button size="sm" variant="danger" onClick={() => bulkStatus.mutate({ ids: [...selectedIds], status: 'suspended' })} loading={bulkStatus.isPending}>
+              <Ban className="w-3.5 h-3.5" /> Suspend All
+            </Button>
+            <button onClick={() => setSelectedIds(new Set())} className="text-xs text-ink-400 hover:text-white ml-auto">Clear</button>
+          </div>
+        )}
         <div className="flex items-center gap-3 mb-4">
           <div className="relative flex-1">
             <Search className="absolute left-3.5 top-1/2 -translate-y-1/2 w-4 h-4 text-ink-400" />
@@ -167,6 +217,12 @@ export default function AdminUsers() {
               <table className="w-full text-sm">
                 <thead>
                   <tr className="text-left text-xs text-ink-400 uppercase tracking-wider border-b border-white/5">
+                    <th className="pb-3 font-medium w-10">
+                      <button onClick={toggleSelectAll} className="text-ink-400 hover:text-gold-300">
+                        {pagedUsers.filter((u) => u.role !== 'admin').every((u) => selectedIds.has(u.id)) && pagedUsers.some((u) => u.role !== 'admin')
+                          ? <CheckSquare className="w-4 h-4" /> : <Square className="w-4 h-4" />}
+                      </button>
+                    </th>
                     <th className="pb-3 font-medium">User</th>
                     <th className="pb-3 font-medium">Role</th>
                     <th className="pb-3 font-medium">Status</th>
@@ -178,15 +234,22 @@ export default function AdminUsers() {
                   {pagedUsers.map((u) => (
                     <tr key={u.id} className="hover:bg-white/5 transition-colors">
                       <td className="py-3">
-                        <div className="flex items-center gap-3">
+                        {u.role !== 'admin' && (
+                          <button onClick={() => toggleSelect(u.id)} className="text-ink-400 hover:text-gold-300">
+                            {selectedIds.has(u.id) ? <CheckSquare className="w-4 h-4 text-gold-300" /> : <Square className="w-4 h-4" />}
+                          </button>
+                        )}
+                      </td>
+                      <td className="py-3">
+                        <Link to={`/admin/users/${u.id}`} className="flex items-center gap-3 group">
                           <div className="w-8 h-8 rounded-full gold-gradient flex items-center justify-center text-ink-900 text-xs font-bold flex-shrink-0">
                             {getInitials(u.full_name || u.username)}
                           </div>
                           <div>
-                            <p className="font-medium text-white">{u.full_name || u.username}</p>
+                            <p className="font-medium text-white group-hover:text-gold-300 transition-colors">{u.full_name || u.username}</p>
                             <p className="text-xs text-ink-400">{u.email}</p>
                           </div>
-                        </div>
+                        </Link>
                       </td>
                       <td className="py-3">
                         <Badge variant={u.role === 'admin' ? 'gold' : 'default'}>{u.role}</Badge>

@@ -1,7 +1,7 @@
-import { useState } from 'react';
-import { useNavigate, useLocation } from 'react-router-dom';
+import { useState, useEffect } from 'react';
+import { useNavigate, useLocation, useSearchParams } from 'react-router-dom';
 import { motion, AnimatePresence } from 'framer-motion';
-import { Phone, Lock, ArrowRight, Eye, EyeOff, User, Wallet } from 'lucide-react';
+import { Phone, Lock, ArrowRight, Eye, EyeOff, User, Wallet, Gift } from 'lucide-react';
 import { supabase } from '@/lib/supabase';
 import { useToast } from '@/context/ToastContext';
 import { Button, Input } from '@/components/ui';
@@ -20,11 +20,24 @@ export default function AuthPage() {
   const [phone, setPhone] = useState('');
   const [password, setPassword] = useState('');
   const [confirmPassword, setConfirmPassword] = useState('');
+  const [referralCode, setReferralCode] = useState('');
+  const [referralValid, setReferralValid] = useState<null | boolean>(null);
+  const [referralChecking, setReferralChecking] = useState(false);
+  const [searchParams] = useSearchParams();
   const [showPassword, setShowPassword] = useState(false);
   const [loading, setLoading] = useState(false);
   const [errors, setErrors] = useState<Record<string, string>>({});
 
   const from = (location.state as { from?: { pathname: string } })?.from?.pathname || '/dashboard';
+
+  useEffect(() => {
+    const ref = searchParams.get('ref');
+    if (ref) {
+      setTab('register');
+      setReferralCode(ref.toUpperCase());
+      checkReferralCode(ref);
+    }
+  }, [searchParams]);
 
   const setFieldError = (key: string, msg: string) => {
     setErrors((prev) => ({ ...prev, [key]: msg }));
@@ -48,6 +61,7 @@ export default function AuthPage() {
     if (tab === 'register') {
       if (!fullName.trim()) e.fullName = 'Full name is required';
       if (password !== confirmPassword) e.confirmPassword = 'Passwords do not match';
+      if (referralCode.trim() && referralValid === false) e.referralCode = 'Invalid referral code';
     }
     setErrors(e);
     return Object.keys(e).length === 0;
@@ -96,6 +110,7 @@ export default function AuthPage() {
         data: {
           full_name: fullName.trim(),
           phone: normalized,
+          referral_code: referralCode.trim().toUpperCase(),
         },
       },
     });
@@ -136,7 +151,26 @@ export default function AuthPage() {
     setErrors({});
     setPassword('');
     setConfirmPassword('');
+    setReferralCode('');
+    setReferralValid(null);
     setShowPassword(false);
+  };
+
+  const checkReferralCode = async (code: string) => {
+    if (!code.trim()) { setReferralValid(null); return; }
+    setReferralChecking(true);
+    try {
+      const { data } = await supabase
+        .from('profiles')
+        .select('id')
+        .eq('referral_code', code.toUpperCase().trim())
+        .maybeSingle();
+      setReferralValid(!!data);
+    } catch {
+      setReferralValid(null);
+    } finally {
+      setReferralChecking(false);
+    }
   };
 
   return (
@@ -271,6 +305,36 @@ export default function AuthPage() {
                       autoComplete="new-password"
                       required
                     />
+                  </div>
+                )}
+
+                {tab === 'register' && (
+                  <div>
+                    <Input
+                      label="Referral Code (optional)"
+                      type="text"
+                      name="referralCode"
+                      value={referralCode}
+                      onChange={(e) => {
+                        const val = e.target.value.toUpperCase();
+                        setReferralCode(val);
+                        if (errors.referralCode) setErrors({ ...errors, referralCode: '' });
+                        setReferralValid(null);
+                        checkReferralCode(val);
+                      }}
+                      placeholder="Enter referral code"
+                      icon={<Gift className="w-4 h-4" />}
+                      error={errors.referralCode}
+                    />
+                    {referralChecking && (
+                      <p className="text-xs text-ink-400 mt-1">Checking code...</p>
+                    )}
+                    {referralValid === true && !referralChecking && referralCode.trim() && (
+                      <p className="text-xs text-success-400 mt-1">Valid referral code!</p>
+                    )}
+                    {referralValid === false && !referralChecking && referralCode.trim() && (
+                      <p className="text-xs text-danger-400 mt-1">Invalid referral code</p>
+                    )}
                   </div>
                 )}
 

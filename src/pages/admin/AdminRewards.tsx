@@ -1,16 +1,18 @@
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { useState } from 'react';
-import { Gift, CalendarCheck, Save, Sparkles } from 'lucide-react';
+import { Gift, CalendarCheck, Save, Sparkles, Users } from 'lucide-react';
 import { supabase } from '@/lib/supabase';
 import { useToast } from '@/context/ToastContext';
 import { Card, Button, Input, PageHeader, Badge } from '@/components/ui';
 import { formatCurrency } from '@/lib/utils';
-import type { RewardsConfig } from '@/types/database';
+import type { RewardsConfig, WebsiteSettings } from '@/types/database';
 
 export default function AdminRewards() {
   const toast = useToast();
   const qc = useQueryClient();
   const [form, setForm] = useState<Partial<RewardsConfig>>({});
+  const [referralPct, setReferralPct] = useState('');
+  const [savingPct, setSavingPct] = useState(false);
 
   const { data: config } = useQuery<RewardsConfig>({
     queryKey: ['rewards-config'],
@@ -18,6 +20,15 @@ export default function AdminRewards() {
       const { data, error } = await supabase.from('rewards_config').select('*').limit(1).maybeSingle();
       if (error) throw error;
       return data as RewardsConfig;
+    },
+  });
+
+  const { data: settings } = useQuery<WebsiteSettings>({
+    queryKey: ['website-settings'],
+    queryFn: async () => {
+      const { data, error } = await supabase.from('website_settings').select('*').limit(1).maybeSingle();
+      if (error) throw error;
+      return data as WebsiteSettings;
     },
   });
 
@@ -39,6 +50,26 @@ export default function AdminRewards() {
     onError: () => toast.error('Failed to save settings'),
   });
 
+  const saveReferralPct = async () => {
+    const val = parseFloat(referralPct);
+    if (isNaN(val) || val < 0 || val > 100) {
+      toast.error('Invalid percentage', 'Enter a value between 0 and 100.');
+      return;
+    }
+    setSavingPct(true);
+    try {
+      const { error } = await supabase.from('website_settings').update({ referral_percentage: val }).eq('id', settings!.id);
+      if (error) throw error;
+      qc.invalidateQueries({ queryKey: ['website-settings'] });
+      toast.success('Referral commission updated!', `Commission rate set to ${val}%.`);
+      setReferralPct('');
+    } catch {
+      toast.error('Failed to update commission rate');
+    } finally {
+      setSavingPct(false);
+    }
+  };
+
   const { data: checkins } = useQuery({
     queryKey: ['admin-checkins'],
     queryFn: async () => {
@@ -51,12 +82,47 @@ export default function AdminRewards() {
     <div>
       <PageHeader
         title="Rewards Management"
-        subtitle="Configure welcome bonus and daily check-in rewards"
+        subtitle="Configure welcome bonus, daily check-in rewards, and referral commission"
         icon={<Gift className="w-5 h-5" />}
         action={<Button onClick={() => save.mutate()} loading={save.isPending} disabled={Object.keys(form).length === 0}><Save className="w-4 h-4" /> Save Changes</Button>}
       />
 
       <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
+        {/* Referral Commission */}
+        <Card>
+          <div className="flex items-center gap-3 mb-5">
+            <div className="w-10 h-10 rounded-xl bg-gold-400/10 border border-gold-400/20 flex items-center justify-center text-gold-300">
+              <Users className="w-5 h-5" />
+            </div>
+            <div>
+              <h3 className="font-semibold text-white">Referral Commission</h3>
+              <p className="text-xs text-ink-400">Percentage of each referred user's deposit</p>
+            </div>
+          </div>
+          <div className="space-y-4">
+            <div className="p-3 rounded-xl bg-ink-800/50 border border-white/5">
+              <p className="text-xs text-ink-400">Current Commission Rate</p>
+              <p className="text-2xl font-bold text-gold-300 font-display">{settings?.referral_percentage || 5}%</p>
+            </div>
+            <Input
+              label="New Commission Rate (%)"
+              type="number"
+              value={referralPct}
+              onChange={(e) => setReferralPct(e.target.value)}
+              placeholder={settings?.referral_percentage?.toString() || '5'}
+              icon={<span className="text-gold-300 font-semibold">%</span>}
+            />
+            <Button onClick={saveReferralPct} loading={savingPct} disabled={!referralPct}>
+              <Save className="w-4 h-4" /> Update Commission Rate
+            </Button>
+            <div className="p-3 rounded-xl bg-ink-800/50 border border-white/5">
+              <p className="text-xs text-ink-300">
+                <Badge variant="gold">Rule</Badge> When a referred user's deposit is approved, the referrer earns this percentage of the deposit amount, credited to their wallet automatically.
+              </p>
+            </div>
+          </div>
+        </Card>
+
         {/* Welcome Bonus */}
         <Card>
           <div className="flex items-center gap-3 mb-5">
@@ -93,7 +159,7 @@ export default function AdminRewards() {
             />
             <div className="p-3 rounded-xl bg-ink-800/50 border border-white/5">
               <p className="text-xs text-ink-300">
-                <Badge variant="gold">Rule</Badge> Welcome bonuses are credited to the bonus wallet and are <span className="text-white font-medium">not directly withdrawable</span>. They become eligible for withdrawal only when the user has at least one active investment.
+                <Badge variant="gold">Rule</Badge> Welcome bonuses are credited to the available balance and can be used for investments immediately.
               </p>
             </div>
           </div>
@@ -157,9 +223,8 @@ export default function AdminRewards() {
           <div>
             <p className="text-sm font-medium text-white">Withdrawal Rule for Bonus Rewards</p>
             <p className="text-xs text-ink-300 mt-1">
-              Welcome bonuses and daily check-in rewards are credited to the <span className="text-gold-300">bonus wallet</span> and cannot be withdrawn directly.
-              They become eligible for withdrawal only when the user has at least one active investment that meets the platform's withdrawal criteria.
-              This rule is displayed to users in their dashboard.
+              Welcome bonuses and daily check-in rewards are credited directly to the <span className="text-gold-300">available balance</span> and can be used for investments or withdrawals.
+              Referral bonuses are also credited to the available balance instantly when a new user signs up with a referral code.
             </p>
           </div>
         </div>

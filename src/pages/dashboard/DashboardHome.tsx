@@ -3,7 +3,7 @@ import { motion } from 'framer-motion';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import {
   Wallet, TrendingUp, ArrowDownToLine, ArrowUpFromLine, Users,
-  Award, ArrowRight, PieChart as PieIcon, CalendarCheck,
+  Award, ArrowRight, PieChart as PieIcon, CalendarCheck, Timer,
 } from 'lucide-react';
 import {
   AreaChart, Area, XAxis, YAxis, Tooltip, ResponsiveContainer, PieChart, Pie, Cell,
@@ -11,6 +11,7 @@ import {
 import { supabase } from '@/lib/supabase';
 import { useAuth } from '@/context/AuthContext';
 import { useWallet, useMyInvestments, useMyTransactions } from '@/hooks/useUserData';
+import { useCountdownToNextDay } from '@/hooks/useCountdown';
 import { useToast } from '@/context/ToastContext';
 import { StatCard, Card, Badge, EmptyState, SkeletonCard, Button } from '@/components/ui';
 import { formatCurrency, formatDate, timeAgo, getInitials } from '@/lib/utils';
@@ -248,6 +249,7 @@ export default function DashboardHome() {
                       <span>{progress}% complete</span>
                       <span>Matures {formatDate(inv.maturity_date)}</span>
                     </div>
+                    <NextProfitCountdown inv={inv} />
                   </div>
                 );
               })}
@@ -362,7 +364,6 @@ function DailyCheckinCard() {
     },
   });
   const { data: wallet } = useWallet();
-  const { data: myInvestments } = useMyInvestments();
   const toast = useToast();
   const qc = useQueryClient();
 
@@ -398,8 +399,7 @@ function DailyCheckinCard() {
 
   if (!rewardsConfig?.daily_checkin_enabled) return null;
 
-  const hasActiveInvestment = (myInvestments || []).some((i) => i.status === 'active');
-  const bonusBalance = wallet?.bonus_balance || 0;
+  const availableBalance = wallet?.balance || 0;
 
   return (
     <motion.div
@@ -414,13 +414,8 @@ function DailyCheckinCard() {
         <div className="flex-1">
           <h3 className="font-semibold text-white">Daily Check-in Reward</h3>
           <p className="text-xs text-ink-400">
-            Earn {formatCurrency(rewardsConfig.daily_checkin_amount)} every day you check in. Bonus balance: {formatCurrency(bonusBalance)}
+            Earn {formatCurrency(rewardsConfig.daily_checkin_amount)} every day you check in. Available balance: {formatCurrency(availableBalance)}
           </p>
-          {!hasActiveInvestment && (
-            <p className="text-xs text-warning-400 mt-1">
-              Bonus rewards require an active investment before they can be withdrawn.
-            </p>
-          )}
         </div>
         <Button
           size="sm"
@@ -462,6 +457,22 @@ function MiniStat({ label, value, icon }: { label: string; value: string; icon: 
         <p className="text-[11px] font-medium text-ink-400 uppercase tracking-wider">{label}</p>
       </div>
       <p className="text-lg font-bold text-white font-display truncate">{value}</p>
+    </div>
+  );
+}
+
+function NextProfitCountdown({ inv }: { inv: { amount: number; roi: number } }) {
+  const countdown = useCountdownToNextDay();
+  const dailyProfit = (inv.amount * inv.roi) / 100;
+
+  return (
+    <div className="flex items-center gap-2 mt-2 pt-2 border-t border-white/5">
+      <Timer className="w-3 h-3 text-gold-300 flex-shrink-0" />
+      <span className="text-xs text-ink-400">Next profit in</span>
+      <span className="text-xs font-mono font-semibold text-gold-300">
+        {String(countdown.hours).padStart(2, '0')}:{String(countdown.minutes).padStart(2, '0')}:{String(countdown.seconds).padStart(2, '0')}
+      </span>
+      <span className="text-xs text-success-400 ml-auto">+{formatCurrency(dailyProfit)}</span>
     </div>
   );
 }

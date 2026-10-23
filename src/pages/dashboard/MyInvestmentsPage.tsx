@@ -1,7 +1,8 @@
 import { motion } from 'framer-motion';
-import { Wallet, TrendingUp, CheckCircle2, Clock, ArrowRight } from 'lucide-react';
+import { Wallet, TrendingUp, CheckCircle2, Clock, ArrowRight, Timer } from 'lucide-react';
 import { Link } from 'react-router-dom';
 import { useMyInvestments } from '@/hooks/useUserData';
+import { useCountdownToNextDay } from '@/hooks/useCountdown';
 import { Card, Badge, SkeletonCard, EmptyState, PageHeader, StatCard } from '@/components/ui';
 import { formatCurrency, formatDate } from '@/lib/utils';
 import type { Investment } from '@/types/database';
@@ -79,6 +80,7 @@ function InvestmentCard({ inv }: { inv: Investment }) {
   const progress = getProgress(inv.start_date, inv.maturity_date);
   const isActive = inv.status === 'active';
   const daysLeft = Math.max(0, Math.ceil((new Date(inv.maturity_date).getTime() - Date.now()) / (1000 * 60 * 60 * 24)));
+  const countdown = useCountdownToNextDay();
 
   return (
     <Card className="h-full">
@@ -98,25 +100,45 @@ function InvestmentCard({ inv }: { inv: Investment }) {
           <p className="text-sm font-semibold text-white mt-0.5">{formatCurrency(inv.amount)}</p>
         </div>
         <div className="p-3 rounded-lg bg-ink-800/50">
-          <p className="text-xs text-ink-400">Daily Payout</p>
-          <p className="text-sm font-semibold text-white mt-0.5">{formatCurrency((inv.amount * inv.roi / 100) / inv.duration_days)}</p>
+          <p className="text-xs text-ink-400">Daily ROI</p>
+          <p className="text-sm font-semibold text-white mt-0.5">{formatCurrency(inv.amount * inv.roi / 100)}</p>
         </div>
         <div className="p-3 rounded-lg bg-ink-800/50">
           <p className="text-xs text-ink-400">Duration</p>
           <p className="text-sm font-semibold text-white mt-0.5">{inv.duration_days} Days</p>
         </div>
         <div className="p-3 rounded-lg bg-ink-800/50">
-          <p className="text-xs text-ink-400">ROI</p>
-          <p className="text-sm font-semibold text-white mt-0.5">{inv.roi}%</p>
+          <p className="text-xs text-ink-400">ROI Rate</p>
+          <p className="text-sm font-semibold text-white mt-0.5">{inv.roi}% daily</p>
         </div>
         <div className="col-span-2 p-3 rounded-lg bg-gold-400/5 border border-gold-400/10">
-          <p className="text-xs text-gold-200">Expected Total Returns (Daily Payout × 30 Days)</p>
-          <p className="text-lg font-bold text-gold-300 mt-0.5">{formatCurrency(((inv.amount * inv.roi / 100) / inv.duration_days) * 30)}</p>
+          <p className="text-xs text-gold-200">Expected Total Returns (Daily ROI × 30 Days)</p>
+          <p className="text-lg font-bold text-gold-300 mt-0.5">{formatCurrency((inv.amount * inv.roi / 100) * 30)}</p>
         </div>
       </div>
 
       {isActive && (
         <>
+          {/* 24-hour countdown to next profit credit */}
+          <div className="mb-3 p-3 rounded-xl bg-ink-900/60 border border-gold-400/15">
+            <div className="flex items-center gap-2 mb-1.5">
+              <Timer className="w-3.5 h-3.5 text-gold-300" />
+              <p className="text-xs text-gold-200 font-medium">Next profit credit in</p>
+            </div>
+            <div className="flex items-center gap-2 font-mono text-lg font-bold text-white">
+              <span className="px-2 py-1 rounded-lg bg-ink-800 border border-white/5">{String(countdown.hours).padStart(2, '0')}</span>
+              <span className="text-gold-300">:</span>
+              <span className="px-2 py-1 rounded-lg bg-ink-800 border border-white/5">{String(countdown.minutes).padStart(2, '0')}</span>
+              <span className="text-gold-300">:</span>
+              <span className="px-2 py-1 rounded-lg bg-ink-800 border border-white/5">{String(countdown.seconds).padStart(2, '0')}</span>
+            </div>
+            <p className="text-xs text-ink-400 mt-1.5">
+              {countdown.isComplete
+                ? 'Profit is being processed now'
+                : `+${formatCurrency(inv.amount * inv.roi / 100)} will be credited to your balance`}
+            </p>
+          </div>
+
           <div className="mb-2">
             <div className="flex items-center justify-between text-xs mb-1.5">
               <span className="text-ink-400">Progress</span>

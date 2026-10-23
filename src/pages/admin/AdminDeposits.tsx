@@ -1,6 +1,7 @@
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { useState, useMemo } from 'react';
-import { ArrowDownToLine, Check, X, Clock, Search, Download } from 'lucide-react';
+import { Link } from 'react-router-dom';
+import { ArrowDownToLine, Check, X, Clock, Search, Download, CheckSquare, Square } from 'lucide-react';
 import { supabase } from '@/lib/supabase';
 import { useToast } from '@/context/ToastContext';
 import { Card, Button, Badge, PageHeader, Modal, EmptyState, StatCard, Input, Textarea, Pagination } from '@/components/ui';
@@ -23,6 +24,9 @@ export default function AdminDeposits() {
   const [rejectNote, setRejectNote] = useState('');
   const [page, setPage] = useState(1);
   const [pageSize, setPageSize] = useState(10);
+  const [selectedIds, setSelectedIds] = useState<Set<string>>(new Set());
+  const [bulkRejectOpen, setBulkRejectOpen] = useState(false);
+  const [bulkRejectNote, setBulkRejectNote] = useState('');
 
   const { data: deposits, isLoading } = useQuery<Deposit[]>({
     queryKey: ['admin-deposits', filter],
@@ -63,6 +67,58 @@ export default function AdminDeposits() {
     },
     onError: () => toast.error('Failed to reject deposit'),
   });
+
+  const bulkApprove = useMutation({
+    mutationFn: async (ids: string[]) => {
+      const { error } = await supabase.rpc('bulk_approve_deposits', { p_deposit_ids: ids });
+      if (error) throw error;
+    },
+    onSuccess: () => {
+      qc.invalidateQueries({ queryKey: ['admin-deposits'] });
+      toast.success(`Approved ${selectedIds.size} deposits!`);
+      setSelectedIds(new Set());
+    },
+    onError: (err) => {
+      const msg = err instanceof Error ? err.message : 'Bulk approve failed';
+      toast.error('Bulk approve failed', msg);
+    },
+  });
+
+  const bulkReject = useMutation({
+    mutationFn: async (ids: string[]) => {
+      const { error } = await supabase.rpc('bulk_reject_deposits', { p_deposit_ids: ids, p_note: bulkRejectNote });
+      if (error) throw error;
+    },
+    onSuccess: () => {
+      qc.invalidateQueries({ queryKey: ['admin-deposits'] });
+      toast.success(`Rejected ${selectedIds.size} deposits`);
+      setSelectedIds(new Set());
+      setBulkRejectOpen(false);
+      setBulkRejectNote('');
+    },
+    onError: () => toast.error('Bulk reject failed'),
+  });
+
+  const toggleSelect = (id: string) => {
+    setSelectedIds((prev) => {
+      const next = new Set(prev);
+      if (next.has(id)) next.delete(id); else next.add(id);
+      return next;
+    });
+  };
+
+  const toggleSelectAll = () => {
+    const pendingIds = pagedDeposits.filter((d) => d.status === 'pending').map((d) => d.id);
+    if (pendingIds.every((id) => selectedIds.has(id))) {
+      setSelectedIds((prev) => {
+        const next = new Set(prev);
+        pendingIds.forEach((id) => next.delete(id));
+        return next;
+      });
+    } else {
+      setSelectedIds((prev) => new Set([...prev, ...pendingIds]));
+    }
+  };
 
   const filtered = useMemo(() => {
     let result = deposits || [];
@@ -137,6 +193,18 @@ export default function AdminDeposits() {
       </div>
 
       <Card>
+        {selectedIds.size > 0 && (
+          <div className="flex items-center gap-3 p-3 mb-3 rounded-xl bg-gold-400/5 border border-gold-400/20">
+            <span className="text-sm text-gold-200 font-medium">{selectedIds.size} selected</span>
+            <Button size="sm" variant="primary" onClick={() => bulkApprove.mutate([...selectedIds])} loading={bulkApprove.isPending}>
+              <Check className="w-3.5 h-3.5" /> Approve All
+            </Button>
+            <Button size="sm" variant="danger" onClick={() => setBulkRejectOpen(true)}>
+              <X className="w-3.5 h-3.5" /> Reject All
+            </Button>
+            <button onClick={() => setSelectedIds(new Set())} className="text-xs text-ink-400 hover:text-white ml-auto">Clear</button>
+          </div>
+        )}
         {isLoading ? (
           <p className="text-center text-ink-400 py-8">Loading...</p>
         ) : allDeposits.length === 0 ? (
@@ -147,6 +215,12 @@ export default function AdminDeposits() {
               <table className="w-full text-sm">
                 <thead>
                   <tr className="text-left text-xs text-ink-400 uppercase tracking-wider border-b border-white/5">
+                    <th className="pb-3 font-medium w-10">
+                      <button onClick={toggleSelectAll} className="text-ink-400 hover:text-gold-300">
+                        {pagedDeposits.filter((d) => d.status === 'pending').every((d) => selectedIds.has(d.id)) && pagedDeposits.some((d) => d.status === 'pending')
+                          ? <CheckSquare className="w-4 h-4" /> : <Square className="w-4 h-4" />}
+                      </button>
+                    </th>
                     <th className="pb-3 font-medium">User</th>
                     <th className="pb-3 font-medium">Amount</th>
                     <th className="pb-3 font-medium">Method</th>
@@ -161,8 +235,17 @@ export default function AdminDeposits() {
                     return (
                       <tr key={dep.id} className="hover:bg-white/5 transition-colors">
                         <td className="py-3">
-                          <p className="font-medium text-white">{user?.full_name || user?.username || 'User'}</p>
-                          <p className="text-xs text-ink-400">{user?.email}</p>
+                          {dep.status === 'pending' && (
+                            <button onClick={() => toggleSelect(dep.id)} className="text-ink-400 hover:text-gold-300">
+                              {selectedIds.has(dep.id) ? <CheckSquare className="w-4 h-4 text-gold-300" /> : <Square className="w-4 h-4" />}
+                            </button>
+                          )}
+                        </td>
+                        <td className="py-3">
+                          <Link to={`/admin/users/${dep.user_id}`} className="group">
+                            <p className="font-medium text-white group-hover:text-gold-300 transition-colors">{user?.full_name || user?.username || 'User'}</p>
+                            <p className="text-xs text-ink-400">{user?.email}</p>
+                          </Link>
                         </td>
                         <td className="py-3 text-white font-medium">{formatCurrency(dep.amount)}</td>
                         <td className="py-3 text-ink-300 capitalize">{dep.method.replace('_', ' ')}</td>
@@ -195,6 +278,17 @@ export default function AdminDeposits() {
           <div className="flex gap-3">
             <Button variant="secondary" fullWidth onClick={() => setRejectTarget(null)}>Cancel</Button>
             <Button variant="danger" fullWidth onClick={() => reject.mutate()} loading={reject.isPending}>Reject Deposit</Button>
+          </div>
+        </div>
+      </Modal>
+
+      <Modal open={bulkRejectOpen} onClose={() => setBulkRejectOpen(false)} title={`Reject ${selectedIds.size} Deposits`} size="sm">
+        <div className="space-y-4">
+          <p className="text-sm text-ink-300">Are you sure you want to reject {selectedIds.size} deposits?</p>
+          <Textarea label="Reason (optional)" value={bulkRejectNote} onChange={(e) => setBulkRejectNote(e.target.value)} placeholder="Why are these deposits being rejected?" />
+          <div className="flex gap-3">
+            <Button variant="secondary" fullWidth onClick={() => setBulkRejectOpen(false)}>Cancel</Button>
+            <Button variant="danger" fullWidth onClick={() => bulkReject.mutate([...selectedIds])} loading={bulkReject.isPending}>Reject All</Button>
           </div>
         </div>
       </Modal>

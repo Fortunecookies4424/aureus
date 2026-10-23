@@ -47,7 +47,7 @@ export default function DepositPage() {
     try {
       await createDeposit.mutateAsync({
         amount: amt,
-        method: 'online' as 'bank_transfer',
+        method: gatewaySlug as 'bank_transfer',
         reference: `DEP-${Date.now().toString(36).toUpperCase()}`,
       });
       toast.success('Deposit initiated!', `Your deposit via ${gatewaySlug} is being processed.`);
